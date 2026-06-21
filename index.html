@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Cash Tracker — Field Ledger</title>
+<meta name="theme-color" content="#E9F2F4" />
+<meta name="description" content="Technical ticket-style cash tracker — log every rupee, watch your burn rate, never lose track again." />
+<link rel="manifest" href="./manifest.json" />
+<link rel="icon" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Ledger" />
+<style>html,body{margin:0;background:#E9F2F4;min-height:100vh;}</style>
+</head>
+<body>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Space+Mono:wght@400;700&display=swap');
+
+:root{
+  --bg:#E9F2F4;
+  --panel:#FFFFFF;
+  --grid:rgba(17,24,28,0.055);
+  --ink:#12181C;
+  --ink-soft:#5B6B73;
+  --ink-faint:#93A3AA;
+  --yellow:#F0C419;
+  --yellow-deep:#9A6F08;
+  --line:#CBD8DB;
+  --warn:#C23B3B;
+  --mono:'Space Mono', monospace;
+  --display:'Archivo', sans-serif;
+}
+
+*{box-sizing:border-box;}
+.cash-app{
+  font-family:var(--display);
+  color:var(--ink);
+  background:var(--bg);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:22px 22px;
+  max-width:880px;
+  margin:0 auto;
+  border:1px solid var(--line);
+  position:relative;
+  padding-left:10px;
+}
+.cash-app::before{
+  content:'';
+  position:absolute;left:0;top:0;bottom:0;width:6px;
+  background:repeating-linear-gradient(135deg, var(--yellow) 0 10px, var(--ink) 10px 20px);
+}
+
+/* ---- header ---- */
+.tk-header{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 18px 12px;}
+.tk-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ink-soft);text-transform:uppercase;}
+.tk-title{font-family:var(--display);font-weight:800;font-size:18px;margin-top:2px;letter-spacing:-.01em;}
+.tk-access{text-align:right;font-family:var(--mono);font-size:10px;color:var(--ink-faint);line-height:1.5;}
+.tk-access b{color:var(--ink-soft);display:block;font-size:9px;letter-spacing:.08em;}
+.barcode{height:20px;margin-top:6px;width:90px;margin-left:auto;
+  background-image:repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 5px, var(--ink) 5px 6px, transparent 6px 11px);
+  opacity:.7;
+}
+.tk-divider{border:none;border-top:2px dashed var(--line);margin:0;}
+
+.tk-body{padding:16px 18px 22px;}
+
+/* ---- ticket card ---- */
+.ticket{background:var(--panel);border:1px solid var(--line);position:relative;padding:18px;margin-bottom:14px;}
+.ticket::before{content:'+';position:absolute;top:-8px;left:-8px;font-family:var(--mono);color:var(--ink-faint);font-size:14px;}
+.ticket::after{content:'+';position:absolute;bottom:-8px;right:-8px;font-family:var(--mono);color:var(--ink-faint);font-size:14px;}
+.ticket-label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--ink-soft);text-transform:uppercase;margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:8px;}
+
+/* ---- stat pair ---- */
+.stat-pair{display:flex;gap:24px;flex-wrap:wrap;}
+.stat{flex:1;min-width:140px;}
+.stat-cap{font-family:var(--mono);font-size:11px;color:var(--ink-soft);letter-spacing:.05em;}
+.stat-val{font-family:var(--display);font-weight:800;font-size:40px;line-height:1.05;letter-spacing:-.02em;margin-top:2px;}
+.stat-corner{font-family:var(--mono);font-size:11px;color:var(--ink-faint);text-align:right;align-self:flex-end;}
+
+/* ---- hazard banner ---- */
+.hazard{
+  display:none;align-items:center;gap:8px;margin-top:14px;padding:8px 10px;
+  background:repeating-linear-gradient(135deg, var(--yellow) 0 10px, var(--ink) 10px 20px);
+}
+.hazard span{background:var(--panel);font-family:var(--mono);font-weight:700;font-size:11px;letter-spacing:.05em;padding:4px 8px;color:var(--warn);}
+.hazard.show{display:flex;}
+
+/* ---- tick gauge ---- */
+.tick-gauge{display:flex;gap:2px;margin-top:14px;}
+.tick-seg{flex:1;height:10px;background:var(--line);}
+.tick-seg.filled{background:var(--ink);}
+.tick-seg.filled.warn{background:var(--warn);}
+.tick-seg.filled.caution{background:var(--yellow-deep);}
+.gauge-pct{font-family:var(--mono);font-size:10px;color:var(--ink-soft);margin-top:6px;}
+
+/* ---- entry form ---- */
+.type-row{display:flex;gap:8px;margin-bottom:16px;}
+.type-badge{
+  flex:1;background:var(--panel);border:1px solid var(--ink);color:var(--ink);
+  font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;padding:9px;cursor:pointer;text-transform:uppercase;
+}
+.type-badge.active[data-type="spend"]{background:var(--ink);color:#fff;}
+.type-badge.active[data-type="topup"]{background:var(--yellow);border-color:var(--yellow-deep);color:var(--ink);}
+
+.field-row{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
+.field{flex:1;min-width:140px;}
+.field-cap{font-family:var(--mono);font-size:10px;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:5px;}
+.tk-input{
+  width:100%;border:none;border-bottom:1.5px solid var(--ink);background:transparent;
+  font-family:var(--display);font-size:16px;font-weight:700;padding:5px 2px;outline:none;color:var(--ink);
+}
+.tk-input::placeholder{color:var(--ink-faint);font-weight:500;}
+.tk-input:focus{border-color:var(--yellow-deep);}
+#noteInput{font-weight:500;font-size:14px;}
+
+.chip-row{display:flex;flex-wrap:wrap;gap:7px;margin:4px 0 18px;}
+.chip{
+  border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);
+  font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:6px 11px;cursor:pointer;text-transform:uppercase;
+}
+.chip.active{background:var(--ink);border-color:var(--ink);color:var(--yellow);}
+
+.tk-btn{
+  width:100%;background:var(--ink);color:var(--yellow);border:none;border-left:6px solid var(--yellow);
+  font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.08em;padding:13px;cursor:pointer;text-transform:uppercase;
+}
+.tk-btn:hover:not(:disabled){background:#000;}
+.tk-btn:disabled{opacity:.35;cursor:not-allowed;}
+
+/* ---- badge grid (categories) ---- */
+.badge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);}
+.badge-cell{background:var(--panel);padding:10px 12px;}
+.badge-cat{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--ink-soft);text-transform:uppercase;}
+.badge-amt{font-family:var(--display);font-weight:800;font-size:17px;margin-top:3px;}
+.badge-bar{height:3px;background:var(--line);margin-top:8px;}
+.badge-bar-fill{height:100%;background:var(--ink);}
+.empty-state{font-family:var(--mono);color:var(--ink-faint);font-size:11.5px;text-align:center;padding:18px 0;text-transform:uppercase;letter-spacing:.05em;}
+
+/* ---- log rows ---- */
+.log-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;}
+.log-toolbar a{color:var(--yellow-deep);text-decoration:none;font-weight:700;cursor:pointer;}
+.log-row{display:flex;align-items:center;gap:14px;padding:11px 0;border-bottom:1px dashed var(--line);}
+.log-row:last-child{border-bottom:none;}
+.log-date{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);width:78px;flex-shrink:0;line-height:1.5;}
+.log-date b{display:block;color:var(--ink);font-size:11px;}
+.log-cat{font-family:var(--mono);font-size:9.5px;border:1px solid var(--line);padding:3px 6px;color:var(--ink-soft);text-transform:uppercase;flex-shrink:0;letter-spacing:.03em;}
+.log-note{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.log-amt{font-family:var(--display);font-weight:800;font-size:14px;flex-shrink:0;}
+.log-del{background:none;border:1px solid var(--line);color:var(--ink-faint);font-family:var(--mono);font-size:10px;cursor:pointer;padding:3px 7px;flex-shrink:0;}
+.log-del:hover{border-color:var(--warn);color:var(--warn);}
+.feed-list{max-height:320px;overflow-y:auto;}
+
+.tk-footer{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);text-align:center;padding:10px;letter-spacing:.05em;text-transform:uppercase;}
+
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(16px);
+  background:var(--ink);color:var(--yellow);font-family:var(--mono);font-size:11.5px;
+  padding:9px 16px;opacity:0;pointer-events:none;transition:.25s;z-index:50;text-transform:uppercase;letter-spacing:.05em;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.loading-text{font-family:var(--mono);font-size:12px;color:var(--ink-soft);text-align:center;padding:40px 0;text-transform:uppercase;}
+.setup-card{max-width:420px;margin:20px auto;}
+.currency-row{display:flex;align-items:center;gap:8px;margin:8px 0 16px;font-family:var(--display);font-size:26px;font-weight:800;}
+.currency-row input{flex:1;}
+</style>
+
+<div class="cash-app">
+  <div class="tk-header">
+    <div>
+      <div class="tk-eyebrow">Field Ledger // Local Currency: INR</div>
+      <div class="tk-title">Cash Tracker</div>
+    </div>
+    <div class="tk-access">
+      <b>Access Code</b>
+      Operator &middot; Tier 1
+      <div class="barcode"></div>
+    </div>
+  </div>
+  <hr class="tk-divider" />
+
+  <div class="tk-body">
+    <div id="loadingState" class="loading-text">Loading ledger…</div>
+
+    <div id="setupPanel" class="ticket setup-card" hidden>
+      <div class="ticket-label">New Session</div>
+      <span class="field-cap">Starting balance</span>
+      <div class="currency-row"><span>&#8377;</span><input id="startingInput" class="tk-input" type="number" inputmode="decimal" placeholder="600" /></div>
+      <button id="initBtn" class="tk-btn">Initialize Ledger</button>
+    </div>
+
+    <main id="mainPanel" hidden>
+      <section class="ticket">
+        <div class="ticket-label">On-Hand Status</div>
+        <div class="stat-pair">
+          <div class="stat">
+            <div class="stat-cap">Balance</div>
+            <div class="stat-val" id="balanceValue">&#8377;0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-cap">Runway</div>
+            <div class="stat-val" id="daysLeftBig">--</div>
+          </div>
+          <div class="stat-corner" id="burnRateCorner">--</div>
+        </div>
+        <div class="hazard" id="hazardBanner"><span id="hazardText">LOW BALANCE</span></div>
+        <div class="tick-gauge" id="tickGauge"></div>
+        <div class="gauge-pct" id="gaugePct">of &#8377;0 starting balance</div>
+      </section>
+
+      <section class="ticket" id="sectionLog">
+        <div class="ticket-label">New Entry</div>
+        <div class="type-row">
+          <button class="type-badge active" data-type="spend">&#8722; Spend</button>
+          <button class="type-badge" data-type="topup">&#43; Top-Up</button>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <span class="field-cap">Amount (&#8377;)</span>
+            <input id="amountInput" class="tk-input" type="number" inputmode="decimal" placeholder="0.00" />
+          </div>
+          <div class="field" style="flex:2;">
+            <span class="field-cap">Note</span>
+            <input id="noteInput" class="tk-input" type="text" placeholder="what was it for" maxlength="60" />
+          </div>
+        </div>
+        <span class="field-cap" id="categoryLabel">Category</span>
+        <div class="chip-row" id="categoryChips"></div>
+        <button id="logBtn" class="tk-btn" disabled>Log Entry</button>
+      </section>
+
+      <section class="ticket">
+        <div class="ticket-label">Category Breakdown</div>
+        <div class="badge-grid" id="breakdownList"></div>
+      </section>
+
+      <section class="ticket">
+        <div class="ticket-label">Transaction Log</div>
+        <div class="log-toolbar">
+          <span id="resultCount">All entries</span>
+          <a id="resetLink">Reset Ledger</a>
+        </div>
+        <div class="feed-list" id="feedList"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="tk-footer">Local data only &middot; not affiliated with any retailer or carrier</div>
+  <div id="toast" class="toast"></div>
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'cash-ledger-v1';
+  const CATEGORIES = [
+    {id:'food', label:'Food'},
+    {id:'transport', label:'Transport'},
+    {id:'shopping', label:'Shopping'},
+    {id:'bills', label:'Bills'},
+    {id:'fun', label:'Fun'},
+    {id:'misc', label:'Misc'}
+  ];
+  const catMap = Object.fromEntries(CATEGORIES.map(c=>[c.id,c]));
+
+  let data = null;
+  let selectedType = 'spend';
+  let selectedCategory = 'food';
+
+  const $ = id => document.getElementById(id);
+  const fmt = n => Number(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const fmtShort = n => '\u20B9' + Number(n).toLocaleString('en-IN', {minimumFractionDigits: Number(n)%1===0?0:2, maximumFractionDigits:2});
+
+  function showToast(msg){
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 1800);
+  }
+
+  async function loadData(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw) data = JSON.parse(raw);
+    }catch(e){ data = null; }
+    $('loadingState').hidden = true;
+    if(data){
+      $('mainPanel').hidden = false;
+      renderAll();
+    } else {
+      $('setupPanel').hidden = false;
+    }
+  }
+
+  async function saveData(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }catch(e){ showToast('Save failed — retry'); }
+  }
+
+  $('startingInput').addEventListener('input', ()=>{
+    $('initBtn').disabled = !($('startingInput').value && Number($('startingInput').value) >= 0);
+  });
+  $('initBtn').addEventListener('click', async ()=>{
+    const v = Number($('startingInput').value);
+    if(isNaN(v) || v < 0) return;
+    data = { startingBalance: v, startDate: new Date().toISOString(), transactions: [] };
+    await saveData();
+    $('setupPanel').hidden = true;
+    $('mainPanel').hidden = false;
+    renderAll();
+  });
+
+  $('resetLink').addEventListener('click', async ()=>{
+    if(!confirm('Reset this ledger and start over? This cannot be undone.')) return;
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    data = null;
+    $('mainPanel').hidden = true;
+    $('startingInput').value = '';
+    $('initBtn').disabled = true;
+    $('setupPanel').hidden = false;
+  });
+
+  document.querySelectorAll('.type-badge').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.type-badge').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedType = btn.dataset.type;
+      $('categoryLabel').style.display = selectedType === 'spend' ? 'block' : 'none';
+      $('categoryChips').style.display = selectedType === 'spend' ? 'flex' : 'none';
+      $('logBtn').textContent = selectedType === 'spend' ? 'Log Spend' : 'Log Top-Up';
+      validateEntry();
+    });
+  });
+
+  function buildChips(){
+    const wrap = $('categoryChips');
+    wrap.innerHTML = '';
+    CATEGORIES.forEach(c=>{
+      const chip = document.createElement('button');
+      chip.className = 'chip' + (c.id === selectedCategory ? ' active' : '');
+      chip.textContent = c.label;
+      chip.addEventListener('click', ()=>{
+        selectedCategory = c.id;
+        wrap.querySelectorAll('.chip').forEach(el=>el.classList.remove('active'));
+        chip.classList.add('active');
+      });
+      wrap.appendChild(chip);
+    });
+  }
+
+  function validateEntry(){
+    const amt = Number($('amountInput').value);
+    $('logBtn').disabled = !(amt > 0);
+  }
+  $('amountInput').addEventListener('input', validateEntry);
+
+  $('logBtn').addEventListener('click', async ()=>{
+    const amt = Number($('amountInput').value);
+    if(!(amt > 0)) return;
+    const tx = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      amount: amt,
+      type: selectedType,
+      category: selectedType === 'spend' ? selectedCategory : 'income',
+      note: $('noteInput').value.trim(),
+      date: new Date().toISOString()
+    };
+    data.transactions.push(tx);
+    await saveData();
+    $('amountInput').value = '';
+    $('noteInput').value = '';
+    $('logBtn').disabled = true;
+    showToast(selectedType === 'spend' ? 'Spend logged' : 'Top-up logged');
+    renderAll();
+  });
+
+  async function deleteTx(id){
+    data.transactions = data.transactions.filter(t=>t.id !== id);
+    await saveData();
+    renderAll();
+  }
+
+  function computeBalance(){
+    let bal = data.startingBalance;
+    data.transactions.forEach(t=>{ bal += t.type === 'topup' ? t.amount : -t.amount; });
+    return bal;
+  }
+
+  function computeBurn(balance){
+    const spendTotal = data.transactions.filter(t=>t.type==='spend').reduce((s,t)=>s+t.amount,0);
+    const days = Math.max(1, (Date.now() - new Date(data.startDate).getTime()) / 86400000);
+    const perDay = spendTotal / days;
+    const daysLeft = perDay > 0 ? Math.max(0, Math.floor(balance / perDay)) : null;
+    return { perDay, daysLeft };
+  }
+
+  function renderBalance(balance){
+    const starting = data.startingBalance || 1;
+    const rawPct = balance / starting;
+    const clamped = Math.max(0, Math.min(1, rawPct));
+    $('balanceValue').innerHTML = '&#8377;' + fmt(balance);
+    $('gaugePct').textContent = Math.round(clamped*100) + '% of ' + fmtShort(data.startingBalance) + ' starting balance';
+
+    const segs = 24;
+    const filled = Math.round(clamped*segs);
+    let cls = '';
+    if(rawPct < 0.2) cls = 'warn'; else if(rawPct < 0.5) cls = 'caution';
+    let html = '';
+    for(let i=0;i<segs;i++){
+      html += '<div class="tick-seg' + (i<filled ? ' filled '+cls : '') + '"></div>';
+    }
+    $('tickGauge').innerHTML = html;
+
+    const hazard = $('hazardBanner');
+    if(rawPct < 0.2){
+      hazard.classList.add('show');
+      $('hazardText').textContent = 'LOW BALANCE — ' + Math.round(clamped*100) + '% REMAINING';
+    } else {
+      hazard.classList.remove('show');
+    }
+  }
+
+  function renderBurn(balance){
+    const {perDay, daysLeft} = computeBurn(balance);
+    $('daysLeftBig').textContent = daysLeft === null ? '--' : daysLeft;
+    $('burnRateCorner').textContent = perDay > 0 ? fmtShort(perDay) + ' / day burn' : 'no burn data';
+  }
+
+  function renderBreakdown(){
+    const wrap = $('breakdownList');
+    const totals = {};
+    data.transactions.filter(t=>t.type==='spend').forEach(t=>{
+      totals[t.category] = (totals[t.category]||0) + t.amount;
+    });
+    const entries = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+    if(!entries.length){
+      wrap.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">No spending logged yet</div>';
+      return;
+    }
+    const max = entries[0][1];
+    wrap.innerHTML = entries.map(([catId, amt])=>{
+      const cat = catMap[catId] || {label:catId};
+      const pct = Math.round((amt/max)*100);
+      return '<div class="badge-cell">'
+        + '<div class="badge-cat">'+cat.label+'</div>'
+        + '<div class="badge-amt">'+fmtShort(amt)+'</div>'
+        + '<div class="badge-bar"><div class="badge-bar-fill" style="width:'+pct+'%"></div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderFeed(){
+    const wrap = $('feedList');
+    if(!data.transactions.length){
+      wrap.innerHTML = '<div class="empty-state">Nothing logged yet — your first entry shows up here</div>';
+      $('resultCount').textContent = 'All entries (0)';
+      return;
+    }
+    $('resultCount').textContent = 'All entries (' + data.transactions.length + ')';
+    const sorted = [...data.transactions].sort((a,b)=> new Date(b.date) - new Date(a.date));
+    wrap.innerHTML = sorted.map(t=>{
+      const isSpend = t.type === 'spend';
+      const cat = isSpend ? (catMap[t.category] || {label:t.category}) : {label:'Top-Up'};
+      const d = new Date(t.date);
+      const dateStr = d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+      const timeStr = d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true});
+      const noteText = t.note ? t.note : cat.label;
+      return '<div class="log-row">'
+        + '<div class="log-date"><b>'+dateStr+'</b>'+timeStr+'</div>'
+        + '<div class="log-cat">'+cat.label+'</div>'
+        + '<div class="log-note">'+escapeHtml(noteText)+'</div>'
+        + '<div class="log-amt" style="color:'+(isSpend?'var(--ink)':'var(--yellow-deep)')+'">'+(isSpend?'-':'+')+'\u20B9'+fmt(t.amount)+'</div>'
+        + '<button class="log-del" data-id="'+t.id+'">&times;</button>'
+        + '</div>';
+    }).join('');
+    wrap.querySelectorAll('.log-del').forEach(btn=>{
+      btn.addEventListener('click', ()=>deleteTx(btn.dataset.id));
+    });
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function renderAll(){
+    buildChips();
+    $('categoryLabel').style.display = selectedType === 'spend' ? 'block' : 'none';
+    $('categoryChips').style.display = selectedType === 'spend' ? 'flex' : 'none';
+    const balance = computeBalance();
+    renderBalance(balance);
+    renderBurn(balance);
+    renderBreakdown();
+    renderFeed();
+  }
+
+  loadData();
+})();
+
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+    });
+  }
+
+</script>
+
+</body>
+</html>
